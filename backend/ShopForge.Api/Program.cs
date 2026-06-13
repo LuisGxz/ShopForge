@@ -95,6 +95,7 @@ try
 
     app.MapHealthChecks("/health");
     app.MapAuthEndpoints();
+    app.MapCatalogEndpoints();
 
     app.Run();
 }
