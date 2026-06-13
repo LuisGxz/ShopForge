@@ -38,5 +38,15 @@ public class ShopForgeDbContext(DbContextOptions<ShopForgeDbContext> options) : 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ShopForgeDbContext).Assembly);
+
+        // We assign all Guid identifiers client-side. Tell EF never to treat them as
+        // store-generated, so entities added through a tracked parent's navigation are
+        // correctly marked Added (a non-default Guid would otherwise be read as Modified).
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            var key = entityType.FindPrimaryKey()?.Properties.FirstOrDefault();
+            if (key is { ClrType.Name: nameof(Guid) })
+                key.ValueGenerated = Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.Never;
+        }
     }
 }

@@ -1,20 +1,21 @@
 using Microsoft.EntityFrameworkCore;
+using ShopForge.Application.Common.Interfaces;
 using ShopForge.Domain.Entities;
 using ShopForge.Domain.Enums;
 
 namespace ShopForge.Infrastructure.Persistence;
 
 /// <summary>
-/// Seeds the Emberline Roasters storefront with a realistic specialty-coffee catalog.
-/// Idempotent: catalog is only written when the Products table is empty.
-/// (Demo users and product reviews are seeded in a later phase, once auth exists.)
+/// Seeds the Emberline Roasters storefront with a realistic specialty-coffee catalog,
+/// demo users (admin + customer), and product reviews. Each step is idempotent.
 /// </summary>
-public class DevDataSeeder(ShopForgeDbContext db)
+public class DevDataSeeder(ShopForgeDbContext db, IPasswordHasherService hasher)
 {
     public async Task SeedAsync(CancellationToken ct = default)
     {
         await SeedCatalogAsync(ct);
         await SeedCouponsAsync(ct);
+        await SeedUsersAndReviewsAsync(ct);
     }
 
     private async Task SeedCouponsAsync(CancellationToken ct)
@@ -180,6 +181,91 @@ public class DevDataSeeder(ShopForgeDbContext db)
             165m, "copper", 4.8m, 208, 31);
 
         db.Products.AddRange(products);
+        await db.SaveChangesAsync(ct);
+    }
+
+    private async Task SeedUsersAndReviewsAsync(CancellationToken ct)
+    {
+        if (await db.Users.AnyAsync(ct)) return;
+
+        // Demo accounts surfaced on the login screen.
+        var admin = new User { Email = "admin@shopforge.dev", FullName = "Avery Stone", Role = UserRole.Admin, PasswordHash = hasher.Hash("Admin1234!") };
+        var customer = new User { Email = "demo@shopforge.dev", FullName = "Jordan Reyes", Role = UserRole.Customer, PasswordHash = hasher.Hash("Demo1234!") };
+
+        // Reviewer personas (so review authors look real). One shared dev password.
+        var reviewerPassword = hasher.Hash("Reviewer1234!");
+        string[] reviewerNames =
+        [
+            "Mara Kellan", "Tom Iverson", "Priya Anand", "Lucas Bauer", "Sofia Marín",
+            "Devon Clarke", "Hana Sato", "Noah Whitfield", "Elena Costa", "Ravi Patel"
+        ];
+        var reviewers = reviewerNames.Select((name, i) => new User
+        {
+            Email = $"reviewer{i + 1}@shopforge.dev",
+            FullName = name,
+            Role = UserRole.Customer,
+            PasswordHash = reviewerPassword
+        }).ToList();
+
+        db.Users.Add(admin);
+        db.Users.Add(customer);
+        db.Users.AddRange(reviewers);
+        await db.SaveChangesAsync(ct);
+
+        // A pool of believable, coffee-literate reviews: (rating, title, body).
+        (int Rating, string Title, string Body)[] pool =
+        [
+            (5, "My new daily driver", "Balanced, sweet and clean. I've gone through three bags already — it never disappoints on a V60."),
+            (5, "Exceptional clarity", "The tasting notes are spot on. Bright but not sharp, with a syrupy body that lingers."),
+            (4, "Really good, slightly pricey", "Lovely cup and clearly fresh. Knocking one star only because I wish the bag were a touch bigger."),
+            (5, "Best espresso I've pulled at home", "Thick crema, chocolatey and forgiving with my grind. Dialed it in on the first try."),
+            (4, "Great for pour-over", "Floral and tea-like as promised. A little delicate for milk drinks but shines black."),
+            (5, "Arrived fast and roast-fresh", "Roasted two days before it landed on my doorstep. You can taste the difference."),
+            (3, "Good, just not for me", "Well-roasted and clearly quality, but the fruit-forward profile isn't my usual. Others will love it."),
+            (5, "Gift that became a subscription", "Bought it as a gift, now I order it monthly. The packaging is gorgeous too."),
+            (4, "Smooth and dependable", "No sharp edges, sweet finish. Exactly what I want on a Monday morning."),
+            (5, "Worth the splurge", "A special-occasion coffee. The aromatics fill the whole kitchen before the first sip."),
+            (5, "Consistent bag after bag", "I appreciate that the quality doesn't wobble between lots. Emberline has earned my trust."),
+            (4, "Crowd pleaser", "Served this at brunch and everyone asked where it was from. Easy recommendation.")
+        ];
+
+        var products = await db.Products
+            .Include(p => p.Reviews)
+            .OrderBy(p => p.CreatedAtUtc)
+            .ToListAsync(ct);
+
+        var pickers = new List<User> { customer };
+        pickers.AddRange(reviewers);
+
+        var baseDate = new DateTime(2026, 1, 5, 9, 0, 0, DateTimeKind.Utc);
+        var productIndex = 0;
+        foreach (var product in products)
+        {
+            // One mid-catalog product is left without reviews to exercise the empty state.
+            // Deterministic, varied count: 4..12 reviews per product.
+            var count = product.Slug == "oaxaca-pluma"
+                ? 0
+                : 4 + (productIndex * 7 + product.Slug.Length) % 9;
+            for (var i = 0; i < count; i++)
+            {
+                var entry = pool[(productIndex * 5 + i) % pool.Length];
+                var author = pickers[(productIndex * 3 + i) % pickers.Count];
+                product.Reviews.Add(new Review
+                {
+                    ProductId = product.Id,
+                    UserId = author.Id,
+                    AuthorName = author.FullName,
+                    Rating = entry.Rating,
+                    Title = entry.Title,
+                    Body = entry.Body,
+                    IsVerifiedPurchase = (productIndex + i) % 4 != 0,
+                    CreatedAtUtc = baseDate.AddDays(productIndex).AddHours(i * 6)
+                });
+            }
+            product.RecomputeRating();
+            productIndex++;
+        }
+
         await db.SaveChangesAsync(ct);
     }
 }

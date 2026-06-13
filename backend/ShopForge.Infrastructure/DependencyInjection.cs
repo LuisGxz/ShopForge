@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ShopForge.Application.Common.Interfaces;
+using ShopForge.Infrastructure.Auth;
 using ShopForge.Infrastructure.Common;
 using ShopForge.Infrastructure.Persistence;
 
@@ -18,7 +19,15 @@ public static class DependencyInjection
             options.UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure(3)));
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<ShopForgeDbContext>());
 
+        services.AddOptions<JwtOptions>()
+            .Bind(configuration.GetSection(JwtOptions.SectionName))
+            .Validate(o => !string.IsNullOrWhiteSpace(o.Secret) && o.Secret.Length >= 32,
+                "Jwt:Secret must be configured with at least 32 characters.")
+            .ValidateOnStart();
+
         services.AddScoped<DevDataSeeder>();
+        services.AddSingleton<IJwtTokenService, JwtTokenService>();
+        services.AddSingleton<IPasswordHasherService, PasswordHasherService>();
         services.AddSingleton<IClock, Clock>();
 
         return services;
