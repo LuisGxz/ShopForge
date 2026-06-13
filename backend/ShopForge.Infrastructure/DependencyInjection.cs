@@ -1,9 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using ShopForge.Application.Common.Interfaces;
 using ShopForge.Infrastructure.Auth;
 using ShopForge.Infrastructure.Common;
+using ShopForge.Infrastructure.Payments;
 using ShopForge.Infrastructure.Persistence;
 
 namespace ShopForge.Infrastructure;
@@ -29,6 +31,14 @@ public static class DependencyInjection
         services.AddSingleton<IJwtTokenService, JwtTokenService>();
         services.AddSingleton<IPasswordHasherService, PasswordHasherService>();
         services.AddSingleton<IClock, Clock>();
+
+        // Payment gateway: real Stripe when keys are present, deterministic stub otherwise.
+        var stripeOptions = configuration.GetSection(StripeOptions.SectionName).Get<StripeOptions>() ?? new StripeOptions();
+        services.AddSingleton(stripeOptions);
+        if (stripeOptions.IsConfigured)
+            services.AddSingleton<IPaymentGateway, StripePaymentGateway>();
+        else
+            services.AddSingleton<IPaymentGateway, StubPaymentGateway>();
 
         return services;
     }
