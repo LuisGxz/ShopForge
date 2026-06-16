@@ -1,11 +1,15 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
+import { ApiService } from '../../core/api.service';
 import { LanguageService } from '../../core/language.service';
+import { ProductListItem } from '../../core/models';
 import { IconComponent } from '../../shared/icon.component';
+import { ProductCardComponent } from '../../shared/product-card.component';
 
 @Component({
   selector: 'sf-home',
-  imports: [RouterLink, IconComponent],
+  imports: [RouterLink, IconComponent, ProductCardComponent],
   template: `
     <section class="hero container">
       <div class="copy fade-in">
@@ -29,6 +33,30 @@ import { IconComponent } from '../../shared/icon.component';
       <div class="promo-item"><sf-icon name="package" [size]="22" /><div><strong>{{ isEs() ? 'Envío en 2 días' : '2-day shipping' }}</strong><p class="muted">{{ isEs() ? 'Gratis sobre $60' : 'Free over $60' }}</p></div></div>
       <div class="promo-item"><sf-icon name="shield" [size]="22" /><div><strong>{{ isEs() ? 'Comercio directo' : 'Direct trade' }}</strong><p class="muted">{{ isEs() ? 'Relaciones con cada finca' : 'Relationships at every farm' }}</p></div></div>
     </section>
+
+    <section class="featured container">
+      <div class="head">
+        <div>
+          <h2 class="serif">{{ t().home.featuredTitle }}</h2>
+          <p class="muted sub">{{ t().home.featuredSub }}</p>
+        </div>
+        <a routerLink="/shop" [queryParams]="{ category: 'coffee' }" class="view-all">{{ t().home.viewAll }}</a>
+      </div>
+
+      @if (loading()) {
+        <div class="grid">
+          @for (i of [1,2,3,4]; track i) { <div class="sk"><div class="sk-art skeleton"></div><div class="sk-line skeleton"></div><div class="sk-line short skeleton"></div></div> }
+        </div>
+      } @else if (error()) {
+        <div class="state"><p class="muted">{{ t().common.error }}</p><button class="btn btn-ghost btn-sm" (click)="reload()">{{ t().common.retry }}</button></div>
+      } @else if (products().length === 0) {
+        <p class="muted">{{ t().home.empty }}</p>
+      } @else {
+        <div class="grid">
+          @for (p of products(); track p.id) { <sf-product-card [p]="p" /> }
+        </div>
+      }
+    </section>
   `,
   styles: `
     .hero { display: grid; gap: 2.5rem; align-items: center; padding-block: 3rem 4rem; }
@@ -44,9 +72,43 @@ import { IconComponent } from '../../shared/icon.component';
     .promo-item { display: flex; align-items: center; gap: 0.85rem; padding: 1.1rem 1.25rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); color: var(--copper-600); }
     .promo-item strong { display: block; color: var(--bean-900); font-size: 0.95rem; }
     .promo-item p { margin: 0.1rem 0 0; font-size: 0.85rem; }
+
+    .featured { padding-block: 2.5rem 1rem; }
+    .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
+    .head h2 { font-size: clamp(1.7rem, 3vw, 2.1rem); }
+    .head .sub { margin: 0.3rem 0 0; font-size: 0.9rem; }
+    .view-all { color: var(--copper-600); font-weight: 600; font-size: 0.9rem; white-space: nowrap; }
+    .view-all:hover { text-decoration: underline; }
+    .grid { display: grid; gap: 1.25rem; grid-template-columns: 1fr; }
+    @media (min-width: 560px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (min-width: 920px) { .grid { grid-template-columns: repeat(4, 1fr); } }
+    .sk-art { aspect-ratio: 4/5; border-radius: var(--radius-card); }
+    .sk-line { height: 0.8rem; margin-top: 0.6rem; border-radius: 4px; }
+    .sk-line.short { width: 55%; }
+    .state { display: grid; place-items: center; gap: 0.75rem; padding: 2.5rem 0; }
   `
 })
 export class HomeComponent {
+  private readonly api = inject(ApiService);
   private readonly lang = inject(LanguageService);
   protected readonly isEs = this.lang.isEs;
+  protected readonly t = this.lang.t;
+
+  protected readonly products = signal<ProductListItem[]>([]);
+  protected readonly loading = signal(true);
+  protected readonly error = signal(false);
+
+  constructor() { void this.reload(); }
+
+  protected async reload() {
+    this.loading.set(true); this.error.set(false);
+    try {
+      const res = await firstValueFrom(this.api.getProducts({ sort: 'featured', pageSize: 4, page: 1 }));
+      this.products.set(res.items);
+    } catch {
+      this.error.set(true);
+    } finally {
+      this.loading.set(false);
+    }
+  }
 }

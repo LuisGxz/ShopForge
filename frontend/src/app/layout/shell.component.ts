@@ -3,12 +3,14 @@ import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/rou
 import { AuthService } from '../core/auth.service';
 import { CartStore } from '../core/cart.store';
 import { LanguageService } from '../core/language.service';
+import { DemoGuideComponent } from '../shared/demo-guide.component';
 import { IconComponent } from '../shared/icon.component';
 import { LangToggleComponent } from '../shared/lang-toggle.component';
+import { ToastsComponent } from '../shared/toasts.component';
 
 @Component({
   selector: 'sf-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, IconComponent, LangToggleComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, IconComponent, LangToggleComponent, ToastsComponent, DemoGuideComponent],
   template: `
     <header class="hdr">
       <div class="container bar">
@@ -76,6 +78,9 @@ import { LangToggleComponent } from '../shared/lang-toggle.component';
         </div>
       </div>
     </footer>
+
+    <sf-toasts />
+    <sf-demo-guide />
   `,
   styles: `
     :host { display: flex; flex-direction: column; min-height: 100%; }
