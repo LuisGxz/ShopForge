@@ -1,6 +1,7 @@
 using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -52,6 +53,15 @@ try
     builder.Services.AddAuthorizationBuilder()
         .AddPolicy("Admin", policy => policy.RequireRole(nameof(UserRole.Admin)));
 
+    // Behind the Azure App Service gateway the real client IP arrives in X-Forwarded-For;
+    // without this the rate limiter partitions every request into one shared bucket.
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        options.KnownNetworks.Clear();
+        options.KnownProxies.Clear();
+    });
+
     builder.Services.AddRateLimiter(options =>
     {
         options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -73,6 +83,7 @@ try
 
     var app = builder.Build();
 
+    app.UseForwardedHeaders();
     app.UseExceptionHandler();
     app.UseSerilogRequestLogging();
     app.UseCors("frontend");
