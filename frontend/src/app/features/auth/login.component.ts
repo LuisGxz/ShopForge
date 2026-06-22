@@ -42,6 +42,11 @@ import { LangToggleComponent } from '../../shared/lang-toggle.component';
           </button>
         </form>
 
+        <p style="margin-top:1.1rem;text-align:center;font-size:11px;line-height:1.5;opacity:.6;">
+          ⏳ Free-tier demo — the backend may take ~30s to wake up on the first request.<br>
+          Demo gratuita — el backend puede tardar ~30s en despertar en la primera petición.
+        </p>
+
         <div class="demo">
           <p class="demo-label">{{ t().login.demoLabel }}</p>
           <div class="demo-row">
