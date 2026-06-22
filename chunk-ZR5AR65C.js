@@ -1,0 +1,1 @@
+function n(e){switch(e){case"copper":return"tone-copper";case"amber":return"tone-amber";case"leaf":return"tone-leaf";default:return"tone-beans"}}function r(e){return e==="coffee"?"Whole bean":"Each"}function t(e){return e==="coffee"}export{n as a,r as b,t as c};
