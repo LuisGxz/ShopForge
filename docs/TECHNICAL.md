@@ -150,7 +150,7 @@ which also drives date locale. The language choice is persisted.
 - **Order lines are denormalized snapshots.** Costs a little storage to guarantee a customer's receipt never silently changes when a price or product name does.
 - **In-process domain over a message bus.** A single storefront doesn't need eventual consistency; the transaction boundary is the `OrderFinalizer`. A real multi-service shop would publish `OrderPaid` and fan out fulfilment/email asynchronously.
 - **Refresh token in `localStorage`.** XSS window accepted for an SPA demo; mitigated by 15-min access tokens + rotation. Production would prefer an httpOnly cookie with CSRF defense.
-- **Free-tier infrastructure.** Azure F1 cold-starts and serverless SQL auto-pauses, so the first request after idle is slow; a keep-warm ping mitigates it. No Redis/CDN/queue — out of scope for a demo.
+- **Free-tier infrastructure.** Azure F1 cold-starts and serverless SQL auto-pauses, so the first request after idle is slow; the login screen says so up front and the client retries patiently instead of failing. No Redis/CDN/queue — out of scope for a demo.
 
 ---
 
@@ -168,4 +168,4 @@ which also drives date locale. The language choice is persisted.
 
 - **API** → Azure App Service (F1, Linux) in resource group `shopforge-rg`, with serverless SQL. App settings carry the connection string, JWT secret, CORS origin and `SeedDemoData`; secrets never live in the repo.
 - **Storefront** → GitHub Pages via `deploy-pages.yml`. The workflow injects `window.SHOPFORGE_API_BASE` into `index.html` before `ng build`, builds with `--base-href /ShopForge/`, and copies `index.html → 404.html` for SPA fallback routing.
-- A scheduled `keep-warm.yml` pings `/health` every 15 minutes (with retries) to soften cold starts.
+- The first request after an idle period pays the F1 cold start (≈30 s) and the SQL serverless resume. This is accepted rather than papered over: the login screen states the wait and the client retries, which keeps the free tier free.
